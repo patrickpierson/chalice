@@ -5,13 +5,17 @@ and make a best effort attempt to generate an IAM policy
 for you.
 
 """
+from __future__ import print_function
 import os
 import json
 import uuid
 
 from typing import Any, List, Dict, Set  # noqa
-
 import botocore.session
+
+from chalice.constants import CLOUDWATCH_LOGS
+from chalice.utils import OSUtils  # noqa
+from chalice.config import Config  # noqa
 
 
 def policy_from_source_code(source_code):
@@ -34,11 +38,12 @@ def load_policy_actions():
 
 
 def diff_policies(old, new):
+    # type: (Dict[str, Any], Dict[str, Any]) -> Dict[str, Set[str]]
     diff = {}
-    old = _create_simple_format(old)
-    new = _create_simple_format(new)
-    removed = old - new
-    added = new - old
+    old_actions = _create_simple_format(old)
+    new_actions = _create_simple_format(new)
+    removed = old_actions - new_actions
+    added = new_actions - old_actions
     if removed:
         diff['removed'] = removed
     if added:
@@ -47,12 +52,34 @@ def diff_policies(old, new):
 
 
 def _create_simple_format(policy):
+    # type: (Dict[str, Any]) -> Set[str]
     # This won't be sufficient is the analyzer is ever able
     # to work out which resources you're accessing.
-    actions = set()
+    actions = set()  # type: Set[str]
     for statement in policy['Statement']:
         actions.update(statement['Action'])
     return actions
+
+
+class AppPolicyGenerator(object):
+    def __init__(self, osutils):
+        # type: (OSUtils) -> None
+        self._osutils = osutils
+
+    def generate_policy(self, config):
+        # type: (Config) -> Dict[str, Any]
+        """Auto generate policy for an application."""
+        # Admittedly, this is pretty bare bones logic for the time
+        # being.  All it really does it work out, given a Config instance,
+        # which files need to analyzed and then delegates to the
+        # appropriately analyzer functions to do the real work.
+        # This may change in the future.
+        app_py = os.path.join(config.project_dir, 'app.py')
+        assert self._osutils.file_exists(app_py)
+        app_source = self._osutils.get_file_contents(app_py, binary=False)
+        app_policy = policy_from_source_code(app_source)
+        app_policy['Statement'].append(CLOUDWATCH_LOGS)
+        return app_policy
 
 
 class PolicyBuilder(object):
@@ -82,7 +109,7 @@ class PolicyBuilder(object):
         # client_calls = service_name -> set([method_calls])
         for service in sorted(client_calls):
             if service not in self._policy_actions:
-                print "Unsupported service:", service
+                print("Unsupported service: %s" % service)
                 continue
             service_actions = self._policy_actions[service]
             method_calls = client_calls[service]

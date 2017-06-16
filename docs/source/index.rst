@@ -55,7 +55,15 @@ Topics
    :maxdepth: 2
 
    topics/routing
+   topics/views
    topics/configfile
+   topics/multifile
+   topics/logging
+   topics/sdks
+   topics/stages
+   topics/packaging
+   topics/pyversion
+   topics/cfn
 
 
 API Reference
@@ -67,6 +75,13 @@ API Reference
    api
 
 
+Upgrade Notes
+-------------
+
+.. toctree::
+   :maxdepth: 2
+
+   upgrading
 
 
 Indices and tables
